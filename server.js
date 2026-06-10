@@ -190,7 +190,7 @@ app.post("/api/order", async (req, res) => {
     const dailyLimit = parseInt(await getSetting("daily_limit_"+item) || "500");
     const dailySold  = await getDailySoldQty(item);
     if (dailySold + quantity > dailyLimit)
-      return res.status(400).json({ error: `${item}の本日の販売上限(${dailyLimit}個)に達しました` });
+      return res.status(400).json({ error: `${item}は売り切れました。` });
 
     if (fingerprint) {
       const count = await getDeviceOrderCount(fingerprint);
