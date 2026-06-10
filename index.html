@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文化祭予約</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #F5F5F5;
+  --surface: #FFFFFF;
+  --border:  #E0E0E0;
+  --text:    #1A1A1A;
+  --muted:   #757575;
+  --primary: #1565C0;
+  --accent:  #E65100;
+  --success: #2E7D32;
+  --warn:    #E65100;
+  --radius:  8px;
+}
+body {
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  background: var(--bg); color: var(--text); font-size: 15px;
+  min-height: 100dvh; padding-bottom: 32px;
+}
+header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+}
+header h1 { font-size: 17px; font-weight: 700; }
+.tabbar { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
+.tab {
+  flex: 1; padding: 11px 8px; font-size: 13px; font-weight: 600;
+  text-align: center; cursor: pointer; color: var(--muted);
+  border-bottom: 2px solid transparent; -webkit-tap-highlight-color: transparent;
+}
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.page { display: none; padding: 14px 14px 0; }
+.page.active { display: block; }
+.sec-label {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px;
+}
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+}
+.item-row {
+  display: flex; align-items: center; padding: 10px 0; gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.item-row:last-of-type { border-bottom: none; padding-bottom: 0; }
+.item-row:first-of-type { padding-top: 0; }
+.item-icon { font-size: 22px; width: 28px; text-align: center; flex-shrink: 0; }
+.item-name { font-size: 15px; font-weight: 600; flex: 1; }
+.qty-ctrl { display: flex; align-items: center; gap: 10px; }
+.qty-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--bg); font-size: 18px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent; color: var(--text); line-height: 1;
+}
+.qty-btn:active { background: var(--border); }
+.qty-val { font-size: 17px; font-weight: 700; min-width: 20px; text-align: center; }
+.total-line {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border);
+  font-size: 13px; color: var(--muted);
+}
+.total-line strong { font-size: 15px; color: var(--text); }
+
+/* ── Slot ── */
+.slot-scroll { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.slot-scroll::-webkit-scrollbar { display: none; }
+.slot-track { display: flex; gap: 6px; width: max-content; }
+.hour-group { display: flex; flex-direction: column; gap: 3px; }
+.hour-label { font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; }
+.hour-slots { display: flex; gap: 3px; }
+.slot-chip {
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  background: var(--surface); color: var(--text);
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  min-width: 44px; -webkit-tap-highlight-color: transparent; transition: background .1s;
+}
+.slot-chip .chip-min { font-size: 12px; font-weight: 700; }
+.slot-chip .chip-rem { font-size: 10px; color: var(--muted); }
+.slot-chip.past { background: var(--bg); color: #CCC; cursor: not-allowed; border-color: #EEE; }
+.slot-chip.past .chip-rem { color: #CCC; }
+.slot-chip.low .chip-rem { color: var(--warn); }
+.slot-chip.full { background: var(--bg); color: #CCC; cursor: not-allowed; border-color: #EEE; }
+.slot-chip.full .chip-rem { color: #CCC; }
+.slot-chip.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
+.slot-chip.selected .chip-rem { color: rgba(255,255,255,.7); }
+#slot-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+/* ── Cooldown ── */
+#cooldown-wrap {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; display: none;
+}
+#cooldown-wrap .cd-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .5s linear; }
+
+.btn-order {
+  width: 100%; background: var(--accent); color: #fff; border: none;
+  border-radius: var(--radius); padding: 15px; font-size: 16px; font-weight: 700;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.btn-order:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+.btn-order:not(:disabled):active { opacity: .85; }
+
+/* ── History ── */
+.history-empty { text-align: center; padding: 40px 0; color: var(--muted); font-size: 14px; }
+.h-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.h-card:active { background: var(--bg); }
+.h-card .h-id   { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin-bottom: 4px; }
+.h-card .h-main { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.h-card .h-slot { font-size: 12px; color: var(--muted); }
+.h-card .h-tap  { font-size: 11px; color: var(--primary); margin-top: 4px; }
+
+/* ── Overlay / Sheet ── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 100;
+  align-items: flex-end; justify-content: center;
+}
+.overlay.show { display: flex; }
+.sheet {
+  background: var(--surface); border-radius: 16px 16px 0 0;
+  padding: 20px 18px 36px; width: 100%; max-width: 480px;
+  animation: slideUp .22s ease; max-height: 90dvh; overflow-y: auto;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+.sheet-sub   { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+.info-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+.info-table td { padding: 7px 0; font-size: 14px; border-bottom: 1px solid var(--border); }
+.info-table tr:last-child td { border-bottom: none; }
+.info-table .k { color: var(--muted); width: 80px; }
+.info-table .v { font-weight: 700; }
+.qr-center { display: flex; flex-direction: column; align-items: center; margin-bottom: 16px; }
+.qr-note { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+#qrcode, .qr-display {
+  border: 4px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.12);
+  border-radius: 8px; overflow: hidden;
+}
+.btn-sheet-close {
+  width: 100%; background: var(--primary); color: #fff; border: none;
+  border-radius: var(--radius); padding: 13px; font-size: 15px; font-weight: 700;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin .6s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header><h1>🎪 文化祭予約</h1></header>
+<div class="tabbar">
+  <div class="tab active" onclick="switchTab('order')">予約する</div>
+  <div class="tab" onclick="switchTab('history')">予約履歴</div>
+</div>
+
+<!-- 予約ページ -->
+<div id="page-order" class="page active">
+  <div class="sec-label">商品を選ぶ（合計5個まで）</div>
+  <div class="card">
+    <div class="item-row">
+      <div class="item-icon">🍦</div>
+      <div class="item-name">アイス</div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty('ice',-1)">−</button>
+        <div class="qty-val" id="qty-ice">0</div>
+        <button class="qty-btn" onclick="changeQty('ice',1)">＋</button>
+      </div>
+    </div>
+    <div class="item-row">
+      <div class="item-icon">🫧</div>
+      <div class="item-name">ラムネ</div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty('ramune',-1)">−</button>
+        <div class="qty-val" id="qty-ramune">0</div>
+        <button class="qty-btn" onclick="changeQty('ramune',1)">＋</button>
+      </div>
+    </div>
+    <div class="total-line"><span>合計</span><strong id="qty-total">0個</strong></div>
+  </div>
+
+  <div class="sec-label">受取時間を選ぶ</div>
+  <div class="card">
+    <div class="slot-scroll"><div class="slot-track" id="slot-track"></div></div>
+    <div id="slot-hint"></div>
+  </div>
+
+  <div id="cooldown-wrap">
+    <div class="cd-label" id="cd-label">次の予約まであと —</div>
+    <div class="progress-bar"><div class="progress-fill" id="cd-bar" style="width:100%"></div></div>
+  </div>
+  <button class="btn-order" id="order-btn" onclick="order()" disabled>商品と時間を選んでください</button>
+</div>
+
+<!-- 履歴ページ -->
+<div id="page-history" class="page">
+  <div id="history-list"></div>
+</div>
+
+<!-- 完了シート -->
+<div class="overlay" id="overlay-result" onclick="closeSheet('overlay-result',event)">
+  <div class="sheet">
+    <div class="sheet-title">予約完了 🎉</div>
+    <div class="sheet-sub">受取時にQRコードを提示してください</div>
+    <table class="info-table" id="result-info"></table>
+    <div class="qr-center">
+      <div class="qr-note">受取用QRコード</div>
+      <div id="qrcode"></div>
+    </div>
+    <!-- スクリーンショット誘導 -->
+    <div id="screenshot-banner" style="
+      background:#FFF8E1;border:1px solid #FFD54F;border-radius:8px;
+      padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.6;
+    ">
+      <div style="font-weight:700;margin-bottom:4px;">📸 スクリーンショットを保存してください</div>
+      <div style="color:#555;">このQRコードが受取時に必要です。ブラウザのキャッシュを消すと消えてしまうため、今すぐ画面を保存しておくことをおすすめします。</div>
+    </div>
+    <div id="order-limit-notice" style="
+      font-size:12px;color:#757575;text-align:center;margin-bottom:12px;
+    "></div>
+    <button class="btn-sheet-close" onclick="closeSheet('overlay-result')">閉じる</button>
+  </div>
+</div>
+
+<!-- QR確認シート（履歴から） -->
+<div class="overlay" id="overlay-qr" onclick="closeSheet('overlay-qr',event)">
+  <div class="sheet">
+    <div class="sheet-title">予約の確認</div>
+    <div class="sheet-sub">受取時にこのQRコードを提示してください</div>
+    <table class="info-table" id="qr-sheet-info"></table>
+    <div class="qr-center">
+      <div class="qr-note">受取用QRコード</div>
+      <div id="qr-display"></div>
+    </div>
+    <button class="btn-sheet-close" onclick="closeSheet('overlay-qr')">閉じる</button>
+  </div>
+</div>
+
+<script>
+const LS_KEY    = "festival_orders";
+const LS_CD_KEY = "festival_cooldown";
+const LS_FP_KEY = "festival_fp";
+
+let qtyIce = 0, qtyRamune = 0;
+let selectedSlot = null;
+let slotsData = {};
+let dailyStock = {};
+let cooldownUntil = 0;
+let cdTimer = null;
+let myOrders = [];
+let deviceOrdersLeft = 2; // 残り注文可能回数（サーバーから取得）
+
+// ── デバイスフィンガープリント生成 ──
+function getFingerprint() {
+  let fp = localStorage.getItem(LS_FP_KEY);
+  if (!fp) {
+    const raw = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + "x" + screen.height,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+      navigator.hardwareConcurrency || "",
+      navigator.platform || ""
+    ].join("|");
+    // 簡易ハッシュ（FNV-1a風）
+    let hash = 2166136261;
+    for (let i=0; i<raw.length; i++) {
+      hash ^= raw.charCodeAt(i);
+      hash = (hash * 16777619) >>> 0;
+    }
+    fp = hash.toString(16);
+    localStorage.setItem(LS_FP_KEY, fp);
+  }
+  return fp;
+}
+
+loadMyOrders();
+(function() {
+  const saved = parseInt(localStorage.getItem(LS_CD_KEY)||"0", 10);
+  if (saved > Date.now()) { cooldownUntil = saved; startCooldown(); }
+})();
+loadSlots();
+loadDailyStock();
+checkDeviceLimit();
+setInterval(loadSlots, 10000);
+setInterval(loadDailyStock, 15000);
+
+// ── Daily stock ──
+async function loadDailyStock() {
+  try {
+    const r = await fetch("/api/daily-stock");
+    dailyStock = await r.json();
+  } catch(e) {}
+}
+
+// ── デバイス注文回数確認 ──
+async function checkDeviceLimit() {
+  try {
+    const fp = getFingerprint();
+    const r = await fetch("/api/check-limit", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ fingerprint: fp })
+    });
+    const d = await r.json();
+    deviceOrdersLeft = d.remaining;
+    updateLimitNotice();
+  } catch(e) {}
+}
+
+function updateLimitNotice() {
+  // 予約ページに残り回数を表示
+  let el = document.getElementById("limit-notice");
+  if (!el) return;
+  if (deviceOrdersLeft <= 0) {
+    el.textContent = "本日の予約上限（2回）に達しました";
+    el.style.color = "#C62828";
+  } else {
+    el.textContent = `本日あと${deviceOrdersLeft}回予約できます`;
+    el.style.color = "#757575";
+  }
+}
+
+// ── Tab ──
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach((t,i) =>
+    t.classList.toggle("active",(i===0&&tab==="order")||(i===1&&tab==="history")));
+  document.getElementById("page-order").classList.toggle("active", tab==="order");
+  document.getElementById("page-history").classList.toggle("active", tab==="history");
+  if (tab==="history") renderHistory();
+}
+
+// ── Quantity ──
+function changeQty(item, delta) {
+  const total = qtyIce + qtyRamune;
+  if (item==="ice") {
+    if (delta>0 && total>=5) return;
+    qtyIce = Math.max(0, qtyIce+delta);
+  } else {
+    if (delta>0 && total>=5) return;
+    qtyRamune = Math.max(0, qtyRamune+delta);
+  }
+  document.getElementById("qty-ice").textContent    = qtyIce;
+  document.getElementById("qty-ramune").textContent = qtyRamune;
+  document.getElementById("qty-total").textContent  = (qtyIce+qtyRamune)+"個";
+  updateOrderBtn();
+}
+
+// ── Slots ──
+async function loadSlots() {
+  try {
+    const res = await fetch("/api/slots");
+    slotsData = await res.json();
+    renderSlots();
+  } catch(e) {}
+}
+
+function nowMinutes() {
+  const n = new Date();
+  return n.getHours()*60 + n.getMinutes();
+}
+
+function slotMinutes(timeStr) {
+  const [h,m] = timeStr.split(":").map(Number);
+  return h*60+m;
+}
+
+function renderSlots() {
+  const track = document.getElementById("slot-track");
+  track.innerHTML = "";
+  const nowMins = nowMinutes();
+
+  // Sort keys to guarantee correct order (9時→15時)
+  const sortedEntries = Object.entries(slotsData)
+    .sort((a,b) => slotMinutes(a[0]) - slotMinutes(b[0]));
+
+  const grouped = {};
+  sortedEntries.forEach(([time, data]) => {
+    const [h] = time.split(":");
+    if (!grouped[h]) grouped[h] = [];
+    grouped[h].push({ time, ...data });
+  });
+
+  // Also sort hours numerically
+  Object.keys(grouped).sort((a,b)=>Number(a)-Number(b)).forEach(hour => {
+    const g = document.createElement("div"); g.className = "hour-group";
+    const lbl = document.createElement("div"); lbl.className = "hour-label";
+    lbl.textContent = parseInt(hour)+"時"; g.appendChild(lbl);
+    const row = document.createElement("div"); row.className = "hour-slots";
+
+    grouped[hour].forEach(({ time, capacity, reserved }) => {
+      const remain = capacity - reserved;
+      const isPast = slotMinutes(time) <= nowMins;
+      const chip = document.createElement("button");
+      chip.className = "slot-chip";
+      chip.dataset.slot = time;
+
+      if (isPast) {
+        chip.classList.add("past"); chip.disabled = true;
+      } else if (remain <= 0) {
+        chip.classList.add("full"); chip.disabled = true;
+      } else if (remain <= 20) {
+        chip.classList.add("low");
+      }
+
+      if (time === selectedSlot && !isPast && remain > 0) chip.classList.add("selected");
+      const [,min] = time.split(":");
+      // Convert remain count to friendly label
+      let remLabel;
+      if (isPast)       remLabel = "済";
+      else if (remain <= 0) remLabel = "満席";
+      else if (remain <= 10) remLabel = "残りわずか";
+      else if (remain <= 30) remLabel = "空きあり";
+      else               remLabel = "余裕あり";
+      chip.innerHTML = `<span class="chip-min">${min}分</span><span class="chip-rem">${remLabel}</span>`;
+      chip.onclick = () => { if (!chip.disabled) selectSlot(time); };
+      row.appendChild(chip);
+    });
+
+    g.appendChild(row); track.appendChild(g);
+  });
+}
+
+function selectSlot(time) {
+  selectedSlot = time;
+  document.querySelectorAll(".slot-chip").forEach(c => {
+    c.classList.remove("selected");
+    if (c.dataset.slot===time) c.classList.add("selected");
+  });
+  const d = slotsData[time];
+  const remain = d ? d.capacity-d.reserved : 0;
+  let remLabel = remain<=0?"満席":remain<=10?"残りわずか":remain<=30?"空きあり":"余裕あり";
+  document.getElementById("slot-hint").textContent = time+" を選択中 — "+remLabel;
+  updateOrderBtn();
+}
+
+function updateOrderBtn() {
+  const btn = document.getElementById("order-btn");
+  const total = qtyIce+qtyRamune;
+  if (Date.now()<cooldownUntil) return;
+  if (deviceOrdersLeft <= 0) {
+    btn.disabled=true; btn.textContent="本日の予約上限に達しました（1日2回まで）"; return;
+  }
+  if (total===0 || !selectedSlot) {
+    btn.disabled=true; btn.textContent="商品と時間を選んでください";
+  } else {
+    btn.disabled=false; btn.textContent=selectedSlot+" に予約する（"+total+"個）";
+  }
+}
+
+// ── Cooldown ──
+function startCooldown() {
+  const MS = 2*60*1000;
+  if (cooldownUntil <= Date.now()) cooldownUntil = Date.now()+MS;
+  localStorage.setItem(LS_CD_KEY, String(cooldownUntil));
+  document.getElementById("cooldown-wrap").style.display="block";
+  document.getElementById("order-btn").disabled=true;
+  if (cdTimer) clearInterval(cdTimer);
+  cdTimer = setInterval(() => {
+    const left = cooldownUntil-Date.now();
+    if (left<=0) {
+      clearInterval(cdTimer); cdTimer=null;
+      localStorage.removeItem(LS_CD_KEY);
+      document.getElementById("cooldown-wrap").style.display="none";
+      updateOrderBtn(); return;
+    }
+    const MS_remaining = cooldownUntil - (cooldownUntil - 2*60*1000); // original MS
+    const sec=Math.ceil(left/1000), m=Math.floor(sec/60), s=sec%60;
+    document.getElementById("cd-label").textContent="次の予約まであと "+(m>0?m+"分":"")+s+"秒";
+    document.getElementById("cd-bar").style.width=(left/(2*60*1000)*100)+"%";
+    document.getElementById("order-btn").textContent="あと"+(m>0?m+"分":"")+s+"秒後に予約可能";
+    document.getElementById("order-btn").disabled=true;
+  }, 500);
+}
+
+// ── Order ──
+async function order() {
+  const total = qtyIce+qtyRamune;
+  if (total===0||!selectedSlot) return;
+  if (deviceOrdersLeft <= 0) { alert("本日の予約上限（1日2回）に達しています"); return; }
+
+  const btn = document.getElementById("order-btn");
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span>予約中…';
+
+  const fp = getFingerprint();
+  const toPlace = [];
+  if (qtyIce>0)    toPlace.push({item:"アイス",  quantity:qtyIce});
+  if (qtyRamune>0) toPlace.push({item:"ラムネ", quantity:qtyRamune});
+  const placed = [];
+  try {
+    for (const o of toPlace) {
+      const res = await fetch("/api/order",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({item:o.item, quantity:o.quantity, slot:selectedSlot, fingerprint:fp, lsKey:LS_KEY})
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); await loadSlots(); updateOrderBtn(); return; }
+      placed.push(data);
+    }
+    const entry = { ids:placed.map(p=>p.id), items:toPlace, slot:selectedSlot, timestamp:Date.now() };
+    myOrders.push(entry); saveMyOrders();
+    await checkDeviceLimit();
+    showResult(entry, placed);
+    await loadSlots();
+    await loadDailyStock();
+    qtyIce=0; qtyRamune=0;
+    document.getElementById("qty-ice").textContent="0";
+    document.getElementById("qty-ramune").textContent="0";
+    document.getElementById("qty-total").textContent="0個";
+    selectedSlot=null;
+    document.querySelectorAll(".slot-chip").forEach(c=>c.classList.remove("selected"));
+    document.getElementById("slot-hint").textContent="";
+    startCooldown();
+  } catch(e) { alert("通信エラーが発生しました"); updateOrderBtn(); }
+}
+
+function showResult(entry, placed) {
+  const itemStr = entry.items.map(i=>(i.item==="アイス"?"🍦":"🫧")+" "+i.item+" ×"+i.quantity).join("、");
+  document.getElementById("result-info").innerHTML=`
+    <tr><td class="k">注文番号</td><td class="v">${placed.map(p=>"#"+p.id).join(" / ")}</td></tr>
+    <tr><td class="k">商品</td><td class="v">${itemStr}</td></tr>
+    <tr><td class="k">受取時間</td><td class="v">${entry.slot}</td></tr>`;
+  const qrEl = document.getElementById("qrcode");
+  qrEl.innerHTML="";
+  new QRCode(qrEl,{text:placed.map(p=>p.id).join(","),width:200,height:200,colorDark:"#1A1A1A",colorLight:"#FFFFFF",correctLevel:QRCode.CorrectLevel.M});
+  // 残り予約回数を表示
+  const notice = document.getElementById("order-limit-notice");
+  if (notice) {
+    notice.textContent = deviceOrdersLeft > 0
+      ? `本日あと${deviceOrdersLeft}回予約できます`
+      : "本日の予約は以上で終了です（1日2回まで）";
+  }
+  document.getElementById("overlay-result").classList.add("show");
+}
+
+function closeSheet(id, e) {
+  if (e&&e.target!==document.getElementById(id)) return;
+  document.getElementById(id).classList.remove("show");
+}
+
+function saveMyOrders() { localStorage.setItem(LS_KEY, JSON.stringify(myOrders)); }
+function loadMyOrders()  { try { myOrders=JSON.parse(localStorage.getItem(LS_KEY)||"[]"); } catch(e){myOrders=[];} }
+
+function renderHistory() {
+  const el = document.getElementById("history-list");
+  if (!myOrders.length) { el.innerHTML='<div class="history-empty">まだ予約はありません</div>'; return; }
+  el.innerHTML = [...myOrders].reverse().map((entry,i)=>{
+    const idx = myOrders.length-1-i;
+    const itemStr = entry.items.map(it=>(it.item==="アイス"?"🍦":"🫧")+it.item+"×"+it.quantity).join(" ");
+    return `<div class="h-card" onclick="showQRSheet(${idx})">
+      <div class="h-id">ORDER ${entry.ids.map(id=>"#"+id).join(" / ")}</div>
+      <div class="h-main">${itemStr}</div>
+      <div class="h-slot">受取 ${entry.slot}</div>
+      <div class="h-tap">タップしてQRコードを表示</div>
+    </div>`;
+  }).join("");
+}
+
+function showQRSheet(idx) {
+  const entry = myOrders[idx]; if (!entry) return;
+  const itemStr = entry.items.map(i=>(i.item==="アイス"?"🍦":"🫧")+" "+i.item+" ×"+i.quantity).join("、");
+  document.getElementById("qr-sheet-info").innerHTML=`
+    <tr><td class="k">注文番号</td><td class="v">${entry.ids.map(id=>"#"+id).join(" / ")}</td></tr>
+    <tr><td class="k">商品</td><td class="v">${itemStr}</td></tr>
+    <tr><td class="k">受取時間</td><td class="v">${entry.slot}</td></tr>`;
+  const qrEl = document.getElementById("qr-display");
+  qrEl.innerHTML="";
+  new QRCode(qrEl,{text:entry.ids.join(","),width:200,height:200,colorDark:"#1A1A1A",colorLight:"#FFFFFF",correctLevel:QRCode.CorrectLevel.M});
+  document.getElementById("overlay-qr").classList.add("show");
+}
+</script>
+</body>
+</html>

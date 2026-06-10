@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理画面</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.21.1/zxing.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #F5F5F5;
+  --surface: #FFFFFF;
+  --border:  #E0E0E0;
+  --text:    #1A1A1A;
+  --muted:   #757575;
+  --primary: #1565C0;
+  --success: #2E7D32;
+  --warn:    #E65100;
+  --danger:  #C62828;
+  --radius:  8px;
+}
+body {
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  background: var(--bg); color: var(--text); font-size: 15px;
+  min-height: 100dvh; padding-bottom: 32px;
+}
+header {
+  background: #1A1A2E; color: #fff;
+  padding: 13px 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.h-title { font-size: 16px; font-weight: 700; }
+.live-dot { width:8px;height:8px;background:#4CAF50;border-radius:50%;display:inline-block;margin-right:5px;animation:blink 1.4s ease infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.live-txt { font-size:11px;color:rgba(255,255,255,.6);font-weight:600; }
+
+/* Tabs */
+.tabbar {
+  display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabbar::-webkit-scrollbar { display: none; }
+.tab {
+  flex-shrink: 0; padding: 11px 14px; font-size: 13px; font-weight: 600;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent;
+}
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.page { display: none; padding: 12px 12px 0; }
+.page.active { display: block; }
+
+/* Stats */
+.stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px;
+}
+.stat .s-lbl { font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase; }
+.stat .s-val { font-size:26px;font-weight:900;margin-top:2px; }
+.stat.blue .s-val  { color:var(--primary); }
+.stat.green .s-val { color:var(--success); }
+.stat.warn .s-val  { color:var(--warn); }
+.stat.gray .s-val  { color:var(--text); }
+
+/* Filter chips */
+.filter-row { display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:8px;padding-bottom:2px; }
+.filter-row::-webkit-scrollbar { display:none; }
+.chip {
+  border:1px solid var(--border);border-radius:999px;padding:5px 12px;
+  font-size:12px;font-weight:600;background:var(--surface);color:var(--muted);
+  white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.chip.active { background:var(--primary);color:#fff;border-color:var(--primary); }
+
+/* Order cards */
+.order-card {
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:11px;
+}
+.order-card.received { opacity:.55; }
+.oc-icon { font-size:22px;flex-shrink:0; }
+.oc-info { flex:1;min-width:0; }
+.oc-id   { font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em; }
+.oc-main { font-size:14px;font-weight:700;margin:1px 0; }
+.oc-slot { font-size:12px;color:var(--muted); }
+.oc-badge { font-size:11px;font-weight:700;border-radius:4px;padding:3px 8px;flex-shrink:0; }
+.oc-badge.pending  { background:#FFF3E0;color:var(--warn); }
+.oc-badge.received { background:#E8F5E9;color:var(--success); }
+.empty { text-align:center;padding:40px 0;color:var(--muted);font-size:14px; }
+
+/* ── Upcoming ── */
+.up-slot-block { margin-bottom:14px; }
+.up-slot-header {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;border-radius:var(--radius);margin-bottom:6px;
+  background:#FFF3E0;border-left:4px solid var(--warn);
+}
+.up-slot-header.urgent { background:#FFEBEE;border-left-color:var(--danger); }
+.up-slot-header .ush-time { font-size:16px;font-weight:800; }
+.up-slot-header .ush-countdown {
+  font-size:13px;font-weight:700;color:var(--warn);
+}
+.up-slot-header.urgent .ush-countdown { color:var(--danger); }
+.up-slot-header .ush-total { font-size:12px;color:var(--muted); }
+
+.up-item-row {
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 14px;margin-bottom:5px;display:flex;align-items:center;gap:12px;
+}
+.up-item-icon { font-size:28px;flex-shrink:0; }
+.up-item-name { font-size:18px;font-weight:800;flex:1; }
+.up-item-qty  { font-size:22px;font-weight:900;color:var(--primary); }
+.up-item-unit { font-size:13px;color:var(--muted); }
+
+.up-empty { text-align:center;padding:40px 0;color:var(--muted);font-size:14px;line-height:1.8; }
+
+/* ── QR Scanner ── */
+#page-qr { padding:12px; }
+.qr-frame { position:relative;background:#000;border-radius:var(--radius);overflow:hidden;aspect-ratio:1;margin-bottom:10px; }
+#qr-video { width:100%;height:100%;object-fit:cover;display:block; }
+.qr-overlay { position:absolute;inset:0;display:flex;align-items:center;justify-content:center; }
+.qr-box {
+  width:60%;aspect-ratio:1;border:2px solid rgba(255,255,255,.8);border-radius:12px;
+  position:relative;box-shadow:0 0 0 2000px rgba(0,0,0,.4);
+}
+.scan-line {
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,#1565C0,transparent);
+  animation:scan 2s linear infinite;
+}
+@keyframes scan{0%{top:0;opacity:1}95%{top:95%;opacity:1}100%{top:95%;opacity:0}}
+.qr-status { text-align:center;font-size:13px;color:var(--muted);margin-bottom:10px;min-height:18px; }
+.scan-result { display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px; }
+.scan-result.show { display:block; }
+.sr-top { display:flex;align-items:center;gap:10px;margin-bottom:12px; }
+.sr-icon  { font-size:28px; }
+.sr-title { font-size:16px;font-weight:700; }
+.sr-id    { font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.06em; }
+.info-table { width:100%;border-collapse:collapse;margin-bottom:12px; }
+.info-table td { padding:6px 0;font-size:13px;border-bottom:1px solid var(--border); }
+.info-table tr:last-child td { border-bottom:none; }
+.info-table .k { color:var(--muted);width:80px; }
+.info-table .v { font-weight:700; }
+.warn-box { background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;padding:10px 12px;font-size:13px;color:var(--warn);font-weight:600;margin-bottom:10px; }
+.btn-receive {
+  width:100%;background:var(--success);color:#fff;border:none;border-radius:var(--radius);
+  padding:13px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:6px;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-receive:disabled { background:var(--border);color:var(--muted);cursor:not-allowed; }
+.btn-rescan {
+  width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--radius);padding:11px;font-size:14px;font-weight:600;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.already-done { background:#E8F5E9;border-radius:6px;padding:10px 12px;font-size:13px;color:var(--success);font-weight:700;text-align:center;margin-top:8px; }
+
+/* ── Settings ── */
+.settings-section { margin-bottom:16px; }
+.settings-section .sec-title {
+  font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:8px;
+}
+.settings-card {
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;
+}
+.field-row { margin-bottom:12px; }
+.field-row:last-child { margin-bottom:0; }
+.field-row label { display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px; }
+.field-row input[type=number], .field-row input[type=time] {
+  width:100%;border:1px solid var(--border);border-radius:var(--radius);
+  padding:9px 10px;font-size:15px;background:var(--bg);color:var(--text);
+}
+.field-row input:focus { outline:2px solid var(--primary);border-color:transparent; }
+.field-inline { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+
+.btn-save {
+  width:100%;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);
+  padding:13px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-save:active { opacity:.85; }
+
+/* Slot capacity list */
+.cap-list { max-height:300px;overflow-y:auto; }
+.cap-row {
+  display:flex;align-items:center;gap:10px;padding:7px 0;
+  border-bottom:1px solid var(--border);
+}
+.cap-row:last-child { border-bottom:none; }
+.cap-time { font-size:14px;font-weight:700;min-width:50px; }
+.cap-bar-wrap { flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden; }
+.cap-bar { height:100%;background:var(--primary);border-radius:3px; }
+.cap-input {
+  width:60px;border:1px solid var(--border);border-radius:6px;
+  padding:5px 6px;font-size:13px;text-align:center;background:var(--bg);
+}
+.cap-input:focus { outline:2px solid var(--primary);border-color:transparent; }
+.btn-cap-save {
+  padding:5px 10px;border:none;border-radius:6px;background:var(--primary);color:#fff;
+  font-size:12px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+
+/* Toast & Confirm */
+.toast {
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(10px);
+  background:#1A1A1A;color:#fff;border-radius:999px;padding:9px 18px;
+  font-size:13px;font-weight:600;opacity:0;transition:opacity .2s,transform .2s;
+  z-index:999;pointer-events:none;white-space:nowrap;
+}
+.toast.show { opacity:1;transform:translateX(-50%) translateY(0); }
+.confirm-overlay {
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;
+  align-items:center;justify-content:center;padding:20px;
+}
+.confirm-overlay.show { display:flex; }
+.confirm-box { background:var(--surface);border-radius:12px;padding:20px;width:100%;max-width:320px; }
+.confirm-box h3 { font-size:16px;font-weight:700;margin-bottom:6px; }
+.confirm-box p  { font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5; }
+.confirm-btns { display:flex;gap:8px; }
+.confirm-btns button { flex:1;padding:12px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;font-weight:700;cursor:pointer; }
+.confirm-btns .btn-ok     { background:var(--success);color:#fff;border-color:var(--success); }
+.confirm-btns .btn-cancel { background:var(--surface);color:var(--text); }
+.spinner { display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px; }
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="h-title">🏫 管理画面</div>
+  <div><span class="live-dot"></span><span class="live-txt">LIVE</span></div>
+</header>
+<div class="tabbar">
+  <div class="tab active" onclick="switchTab('orders')">注文一覧</div>
+  <div class="tab" onclick="switchTab('upcoming')">受取予定</div>
+  <div class="tab" onclick="switchTab('qr')">QRスキャン</div>
+  <div class="tab" onclick="switchTab('settings')">設定</div>
+</div>
+
+<!-- 注文一覧 -->
+<div id="page-orders" class="page active">
+  <div class="stats-row">
+    <div class="stat blue"><div class="s-lbl">総注文</div><div class="s-val" id="st-total">—</div></div>
+    <div class="stat warn"><div class="s-lbl">未受取</div><div class="s-val" id="st-pending">—</div></div>
+    <div class="stat green"><div class="s-lbl">受取済</div><div class="s-val" id="st-received">—</div></div>
+    <div class="stat gray"><div class="s-lbl">総個数</div><div class="s-val" id="st-qty">—</div></div>
+  </div>
+  <div class="filter-row">
+    <div class="chip active" data-f="all"      onclick="setFilter(this)">すべて</div>
+    <div class="chip"        data-f="pending"   onclick="setFilter(this)">未受取</div>
+    <div class="chip"        data-f="received"  onclick="setFilter(this)">受取済</div>
+    <div class="chip"        data-f="アイス"    onclick="setFilter(this)">🍦 アイス</div>
+    <div class="chip"        data-f="ラムネ"    onclick="setFilter(this)">🫧 ラムネ</div>
+  </div>
+  <div id="orders-list"></div>
+</div>
+
+<!-- 受取予定 -->
+<div id="page-upcoming" class="page">
+  <div id="upcoming-list"></div>
+</div>
+
+<!-- QRスキャン -->
+<div id="page-qr" class="page" style="padding:12px;">
+  <div class="qr-frame">
+    <video id="qr-video" playsinline autoplay muted></video>
+    <div class="qr-overlay"><div class="qr-box"><div class="scan-line"></div></div></div>
+  </div>
+  <div class="qr-status" id="qr-status">QRコードをスキャン枠に合わせてください</div>
+  <div class="scan-result" id="scan-result">
+    <div class="sr-top">
+      <div class="sr-icon" id="sr-icon">—</div>
+      <div><div class="sr-title" id="sr-title">—</div><div class="sr-id" id="sr-id">—</div></div>
+    </div>
+    <table class="info-table">
+      <tr><td class="k">商品</td><td class="v" id="sr-item">—</td></tr>
+      <tr><td class="k">個数</td><td class="v" id="sr-qty">—</td></tr>
+      <tr><td class="k">受取時間</td><td class="v" id="sr-slot">—</td></tr>
+      <tr><td class="k">ステータス</td><td class="v" id="sr-status">—</td></tr>
+    </table>
+    <div id="sr-actions"></div>
+  </div>
+</div>
+
+<!-- 設定 -->
+<div id="page-settings" class="page">
+
+  <!-- 受取時刻範囲 -->
+  <div class="settings-section">
+    <div class="sec-title">受取時刻範囲</div>
+    <div class="settings-card">
+      <div class="field-inline">
+        <div class="field-row">
+          <label>開始時刻</label>
+          <input type="time" id="cfg-start" step="600">
+        </div>
+        <div class="field-row">
+          <label>終了時刻</label>
+          <input type="time" id="cfg-end" step="600">
+        </div>
+      </div>
+      <div class="field-inline">
+        <div class="field-row">
+          <label>間隔（分）</label>
+          <input type="number" id="cfg-interval" min="5" max="60" step="5">
+        </div>
+        <div class="field-row">
+          <label>デフォルト上限</label>
+          <input type="number" id="cfg-defcap" min="1" max="9999">
+        </div>
+      </div>
+      <button class="btn-save" onclick="saveSlotConfig()">時刻範囲を保存</button>
+    </div>
+  </div>
+
+  <!-- 1日販売上限 -->
+  <div class="settings-section">
+    <div class="sec-title">商品の1日販売上限数</div>
+    <div class="settings-card">
+      <div id="daily-stock-bar" style="margin-bottom:14px;"></div>
+      <div class="field-inline">
+        <div class="field-row">
+          <label>🍦 アイス（個）</label>
+          <input type="number" id="dlimit-ice" min="1" max="9999" value="500">
+        </div>
+        <div class="field-row">
+          <label>🫧 ラムネ（個）</label>
+          <input type="number" id="dlimit-ramune" min="1" max="9999" value="500">
+        </div>
+      </div>
+      <button class="btn-save" onclick="saveDailyLimits()">販売上限を保存</button>
+    </div>
+  </div>
+
+  <!-- スロット上限 -->
+  <div class="settings-section">
+    <div class="sec-title">スロットごとの上限数</div>
+    <div class="settings-card">
+      <div class="cap-list" id="cap-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Confirm dialog -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h3 id="confirm-title">確認</h3>
+    <p id="confirm-msg">—</p>
+    <div class="confirm-btns">
+      <button class="btn-cancel" onclick="confirmCancel()">キャンセル</button>
+      <button class="btn-ok"     onclick="confirmOk()">受取確認</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let allOrders   = [];
+let slotsData   = {};
+let slotConfig  = {};
+let activeFilter = "all";
+let activeTab    = "orders";
+let scanning = false, codeReader = null, manualScanInterval = null;
+let lastScannedIds = null;
+let pendingReceiveIds = [];
+
+// ── Tab ──
+function switchTab(tab) {
+  activeTab = tab;
+  const tabs = ["orders","upcoming","qr","settings"];
+  document.querySelectorAll(".tab").forEach((t,i) => t.classList.toggle("active", tabs[i]===tab));
+  tabs.forEach(id => document.getElementById("page-"+id).classList.toggle("active", id===tab));
+  if (tab==="qr") startScanner(); else stopScanner();
+  if (tab==="upcoming") renderUpcoming();
+  if (tab==="settings") renderSettings();
+}
+
+// ── Load ──
+let dailyLimits = { アイス: 500, ラムネ: 500 };
+let dailyStock  = {};
+
+async function loadAll() {
+  await Promise.all([loadOrders(), loadSlots(), loadSlotConfig(), loadDailyLimits()]);
+}
+async function loadDailyLimits() {
+  try {
+    const [lim, stock] = await Promise.all([
+      fetch("/api/daily-limits").then(r=>r.json()),
+      fetch("/api/daily-stock").then(r=>r.json())
+    ]);
+    dailyLimits = lim;
+    dailyStock  = stock;
+  } catch(e) {}
+}
+async function loadOrders() {
+  try { const r = await fetch("/api/orders"); allOrders = await r.json(); renderStats(); renderOrders(); if(activeTab==="upcoming") renderUpcoming(); } catch(e) {}
+}
+async function loadSlots() {
+  try { const r = await fetch("/api/slots"); slotsData = await r.json(); } catch(e) {}
+}
+async function loadSlotConfig() {
+  try { const r = await fetch("/api/slot-config"); slotConfig = await r.json(); } catch(e) {}
+}
+
+// ── Helpers ──
+function slotToMins(s) { const [h,m]=s.split(":").map(Number); return h*60+m; }
+function nowMins() { const n=new Date(); return n.getHours()*60+n.getMinutes(); }
+function minsUntilSlot(s) { return slotToMins(s)-nowMins(); }
+function visibleOrders(list) {
+  return list.filter(o => {
+    const d = minsUntilSlot(o.slot);
+    return d > -10; // hide if 10+ min past
+  });
+}
+
+// ── Stats ──
+function renderStats() {
+  const v = visibleOrders(allOrders);
+  document.getElementById("st-total").textContent    = v.length;
+  document.getElementById("st-pending").textContent  = v.filter(o=>!o.received).length;
+  document.getElementById("st-received").textContent = v.filter(o=>o.received).length;
+  document.getElementById("st-qty").textContent      = v.reduce((s,o)=>s+o.quantity,0);
+}
+
+// ── Filter ──
+function setFilter(el) {
+  document.querySelectorAll(".chip").forEach(c=>c.classList.remove("active"));
+  el.classList.add("active"); activeFilter=el.dataset.f; renderOrders();
+}
+function renderOrders() {
+  let list = visibleOrders(allOrders).slice().reverse();
+  if (activeFilter==="pending")  list=list.filter(o=>!o.received);
+  if (activeFilter==="received") list=list.filter(o=>o.received);
+  if (activeFilter==="アイス")   list=list.filter(o=>o.item==="アイス");
+  if (activeFilter==="ラムネ")   list=list.filter(o=>o.item==="ラムネ");
+  const el=document.getElementById("orders-list");
+  if (!list.length) { el.innerHTML='<div class="empty">注文がありません</div>'; return; }
+  el.innerHTML=list.map(o=>`
+    <div class="order-card ${o.received?"received":""}">
+      <div class="oc-icon">${o.item==="アイス"?"🍦":"🫧"}</div>
+      <div class="oc-info">
+        <div class="oc-id">ORDER #${o.id}</div>
+        <div class="oc-main">${o.item} ×${o.quantity}個</div>
+        <div class="oc-slot">受取 ${o.slot}</div>
+      </div>
+      <div class="oc-badge ${o.received?"received":"pending"}">${o.received?"✓受取済":"⏳未受取"}</div>
+    </div>`).join("");
+}
+
+// ── Upcoming ──
+function renderUpcoming() {
+  const el = document.getElementById("upcoming-list");
+  const pending = visibleOrders(allOrders).filter(o=>!o.received);
+
+  // 現在時刻を中心に「-10分〜+10分」のスロットを表示
+  // 例: 12:02 → 12:00受取(−2分)と12:10受取(+8分)が対象
+  const bySlot = {};
+  pending.forEach(o => {
+    const mins = minsUntilSlot(o.slot);
+    if (mins >= -10 && mins <= 10) {
+      if (!bySlot[o.slot]) bySlot[o.slot] = [];
+      bySlot[o.slot].push(o);
+    }
+  });
+
+  const slots = Object.keys(bySlot).sort((a,b)=>slotToMins(a)-slotToMins(b));
+  if (!slots.length) {
+    el.innerHTML='<div class="up-empty">受取予定の注文はありません<br>受取10分前になると表示されます</div>';
+    return;
+  }
+
+  el.innerHTML = slots.map(slot => {
+    const orders = bySlot[slot];
+    const mins = minsUntilSlot(slot);
+    const isUrgent = mins <= 3;
+    let countdown;
+    if (mins < 0)      countdown = Math.abs(Math.floor(mins))+"分経過";
+    else if (mins===0) countdown = "今すぐ";
+    else               countdown = Math.ceil(mins)+"分後";
+
+    // aggregate by item
+    const ice    = orders.filter(o=>o.item==="アイス").reduce((s,o)=>s+o.quantity,0);
+    const ramune = orders.filter(o=>o.item==="ラムネ").reduce((s,o)=>s+o.quantity,0);
+
+    const itemRows = [
+      ice>0    ? `<div class="up-item-row"><div class="up-item-icon">🍦</div><div class="up-item-name">アイス</div><div class="up-item-qty">${ice}</div><div class="up-item-unit">個</div></div>` : "",
+      ramune>0 ? `<div class="up-item-row"><div class="up-item-icon">🫧</div><div class="up-item-name">ラムネ</div><div class="up-item-qty">${ramune}</div><div class="up-item-unit">個</div></div>` : ""
+    ].join("");
+
+    return `
+      <div class="up-slot-block">
+        <div class="up-slot-header ${isUrgent?"urgent":""}">
+          <div>
+            <div class="ush-time">${slot} 受取</div>
+            <div class="ush-total">${orders.length}件の注文</div>
+          </div>
+          <div class="ush-countdown">${countdown}</div>
+        </div>
+        ${itemRows}
+      </div>`;
+  }).join("");
+}
+
+// ── QR Scanner ──
+async function startScanner() {
+  if (scanning) return;
+  scanning=true;
+  setQRStatus("カメラ起動中…");
+  document.getElementById("scan-result").classList.remove("show");
+  lastScannedIds=null;
+  const video=document.getElementById("qr-video");
+  if (typeof ZXing!=="undefined") {
+    try {
+      codeReader=new ZXing.BrowserQRCodeReader();
+      await codeReader.decodeFromConstraints({video:{facingMode:"environment"}},video,(result,err)=>{ if(result) handleQR(result.text); });
+      setQRStatus("QRコードをスキャン枠に合わせてください"); return;
+    } catch(e) {}
+  }
+  try {
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+    video.srcObject=stream; await video.play();
+    if ("BarcodeDetector" in window) {
+      const det=new BarcodeDetector({formats:["qr_code"]});
+      manualScanInterval=setInterval(async()=>{ try{ const c=await det.detect(video); if(c.length) handleQR(c[0].rawValue); }catch(e){} },300);
+    }
+    setQRStatus("QRコードをスキャン枠に合わせてください");
+  } catch(e) { setQRStatus("カメラのアクセスを許可してください"); scanning=false; }
+}
+function stopScanner() {
+  scanning=false;
+  if (codeReader){try{codeReader.reset();}catch(e){} codeReader=null;}
+  if (manualScanInterval){clearInterval(manualScanInterval);manualScanInterval=null;}
+  const v=document.getElementById("qr-video");
+  if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
+}
+function setQRStatus(msg){document.getElementById("qr-status").textContent=msg;}
+
+function handleQR(text) {
+  const ids=text.split(",").map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+  if(!ids.length){showToast("無効なQRコードです");return;}
+  const key=ids.join(",");
+  if(lastScannedIds&&lastScannedIds.join(",")===key) return;
+  lastScannedIds=ids;
+  const orders=ids.map(id=>allOrders.find(o=>o.id==id)).filter(Boolean);
+  if(!orders.length){showToast("注文が見つかりません");setQRStatus("注文が見つかりません");setTimeout(()=>{lastScannedIds=null;setQRStatus("QRコードをスキャン枠に合わせてください");},2000);return;}
+  updateScanResult(orders);
+}
+
+function updateScanResult(orders) {
+  const first=orders[0];
+  const allReceived=orders.every(o=>o.received);
+  const itemStr=orders.map(o=>(o.item==="アイス"?"🍦":"🫧")+o.item+"×"+o.quantity+"個").join("、");
+  const idStr=orders.map(o=>"#"+o.id).join(" / ");
+  document.getElementById("sr-icon").textContent=first.item==="アイス"?"🍦":"🫧";
+  document.getElementById("sr-title").textContent=itemStr;
+  document.getElementById("sr-id").textContent="ORDER "+idStr;
+  document.getElementById("sr-item").textContent=orders.map(o=>o.item).join("、");
+  document.getElementById("sr-qty").textContent=orders.reduce((s,o)=>s+o.quantity,0)+"個";
+  document.getElementById("sr-slot").textContent=first.slot;
+  document.getElementById("sr-status").textContent=allReceived?"✓ 受取済み":"⏳ 未受取";
+  setQRStatus("注文を確認しました");
+  const actEl=document.getElementById("sr-actions");
+  if (allReceived) {
+    actEl.innerHTML='<div class="already-done">✓ すでに受取済みです</div>';
+  } else {
+    const mins=minsUntilSlot(first.slot);
+    const tooEarly=mins>10;
+    const warn=tooEarly?`<div class="warn-box">⚠️ 受取時間（${first.slot}）の10分以上前です。本当に受取処理しますか？</div>`:"";
+    actEl.innerHTML=warn+`<button class="btn-receive" id="btn-receive" onclick="doReceive(${JSON.stringify(orders.map(o=>o.id))},${tooEarly})">✓ 受取確認</button><button class="btn-rescan" onclick="rescan()">別のQRをスキャン</button>`;
+  }
+  document.getElementById("scan-result").classList.add("show");
+}
+
+function doReceive(ids, requireConfirm) {
+  if (requireConfirm) {
+    pendingReceiveIds=ids;
+    const slot=allOrders.find(o=>o.id==ids[0])?.slot||"";
+    document.getElementById("confirm-title").textContent="早期受取の確認";
+    document.getElementById("confirm-msg").textContent=`受取時間（${slot}）の10分以上前です。受取処理を行いますか？`;
+    document.getElementById("confirm-overlay").classList.add("show");
+  } else { markReceived(ids); }
+}
+function confirmOk()    { document.getElementById("confirm-overlay").classList.remove("show"); if(pendingReceiveIds.length) markReceived(pendingReceiveIds); pendingReceiveIds=[]; }
+function confirmCancel(){ document.getElementById("confirm-overlay").classList.remove("show"); pendingReceiveIds=[]; }
+
+async function markReceived(ids) {
+  const btn=document.getElementById("btn-receive");
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner"></span>処理中…';}
+  try {
+    for(const id of ids) await fetch("/api/receive/"+id,{method:"POST"});
+    await loadOrders();
+    showToast("✓ 受取を記録しました");
+    lastScannedIds=null;
+  } catch(e) { showToast("エラーが発生しました"); if(btn){btn.disabled=false;btn.textContent="✓ 受取確認";} }
+}
+function rescan(){document.getElementById("scan-result").classList.remove("show");setQRStatus("QRコードをスキャン枠に合わせてください");lastScannedIds=null;}
+
+// ── Settings ──
+async function renderSettings() {
+  await Promise.all([loadSlots(), loadSlotConfig(), loadDailyLimits()]);
+  const pad=(n)=>String(n).padStart(2,"0");
+  document.getElementById("cfg-start").value    = pad(slotConfig.startHour)+":"+pad(slotConfig.startMinute||0);
+  document.getElementById("cfg-end").value      = pad(slotConfig.endHour)+":"+pad(slotConfig.endMinute||0);
+  document.getElementById("cfg-interval").value = slotConfig.intervalMin||10;
+  document.getElementById("cfg-defcap").value   = slotConfig.defaultCapacity||100;
+  document.getElementById("dlimit-ice").value   = dailyLimits["アイス"] || 500;
+  document.getElementById("dlimit-ramune").value= dailyLimits["ラムネ"] || 500;
+  renderDailyStockBar();
+  renderCapList();
+}
+
+function renderDailyStockBar() {
+  const el = document.getElementById("daily-stock-bar");
+  if (!el) return;
+  const items = [
+    { key:"アイス",  icon:"🍦" },
+    { key:"ラムネ", icon:"🫧" }
+  ];
+  el.innerHTML = items.map(({key, icon}) => {
+    const s = dailyStock[key] || { limit:500, sold:0, remain:500 };
+    const pct = s.limit > 0 ? Math.min(100, Math.round(s.sold / s.limit * 100)) : 0;
+    const barColor = pct >= 90 ? "var(--danger)" : pct >= 70 ? "var(--warn)" : "var(--success)";
+    return \`<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px;">
+        <span>\${icon} \${key}</span>
+        <span style="color:var(--muted)">\${s.sold} / \${s.limit}個 販売済</span>
+      </div>
+      <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+        <div style="height:100%;width:\${pct}%;background:\${barColor};border-radius:4px;transition:width .3s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">残り \${s.remain}個</div>
+    </div>\`;
+  }).join("");
+}
+
+function renderCapList() {
+  const el=document.getElementById("cap-list");
+  const sorted=Object.entries(slotsData).sort((a,b)=>{
+    const [ah,am]=a[0].split(":").map(Number);
+    const [bh,bm]=b[0].split(":").map(Number);
+    return (ah*60+am)-(bh*60+bm);
+  });
+  el.innerHTML=sorted.map(([time,data])=>{
+    const pct=data.capacity>0?Math.min(100,Math.round(data.reserved/data.capacity*100)):0;
+    return `<div class="cap-row">
+      <div class="cap-time">${time}</div>
+      <div class="cap-bar-wrap"><div class="cap-bar" style="width:${pct}%"></div></div>
+      <input class="cap-input" type="number" min="1" max="9999" value="${data.capacity}" id="cap-${time.replace(":","_")}">
+      <button class="btn-cap-save" onclick="saveCapacity('${time}')">保存</button>
+    </div>`;
+  }).join("");
+}
+
+async function saveSlotConfig() {
+  const startVal = document.getElementById("cfg-start").value.split(":");
+  const endVal   = document.getElementById("cfg-end").value.split(":");
+  const body = {
+    startHour:    parseInt(startVal[0]),
+    startMinute:  parseInt(startVal[1]),
+    endHour:      parseInt(endVal[0]),
+    endMinute:    parseInt(endVal[1]),
+    intervalMin:  parseInt(document.getElementById("cfg-interval").value)||10,
+    defaultCapacity: parseInt(document.getElementById("cfg-defcap").value)||100
+  };
+  try {
+    const r=await fetch("/api/slot-config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.error){showToast("エラー: "+d.error);return;}
+    await loadSlots(); renderCapList();
+    showToast("✓ 時刻範囲を保存しました");
+  } catch(e){showToast("通信エラー");}
+}
+
+async function saveDailyLimits() {
+  const ice    = parseInt(document.getElementById("dlimit-ice").value);
+  const ramune = parseInt(document.getElementById("dlimit-ramune").value);
+  if (isNaN(ice)||ice<1||isNaN(ramune)||ramune<1) { showToast("正しい数値を入力してください"); return; }
+  try {
+    const r = await fetch("/api/daily-limits",{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ "アイス": ice, "ラムネ": ramune })
+    });
+    const d = await r.json();
+    if (d.error) { showToast("エラー: "+d.error); return; }
+    await loadDailyLimits();
+    renderDailyStockBar();
+    showToast("✓ 販売上限を保存しました");
+  } catch(e) { showToast("通信エラー"); }
+}
+
+async function saveCapacity(slot) {
+  const key=slot.replace(":","_");
+  const val=parseInt(document.getElementById("cap-"+key).value);
+  if(isNaN(val)||val<1){showToast("正しい数値を入力してください");return;}
+  try {
+    const r=await fetch("/api/slots/"+encodeURIComponent(slot)+"/capacity",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capacity:val})
+    });
+    const d=await r.json();
+    if(d.error){showToast("エラー: "+d.error);return;}
+    slotsData[slot]=d; renderCapList();
+    showToast("✓ "+slot+" の上限を "+val+" に変更しました");
+  } catch(e){showToast("通信エラー");}
+}
+
+// ── Toast ──
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2500);
+}
+
+// ── Init ──
+loadAll();
+setInterval(loadOrders, 4000);
+setInterval(()=>{ if(activeTab==="upcoming") renderUpcoming(); }, 30000);
+setInterval(()=>{ if(activeTab==="settings") { loadDailyLimits().then(()=>renderDailyStockBar()); } }, 10000);
+</script>
+</body>
+</html>
