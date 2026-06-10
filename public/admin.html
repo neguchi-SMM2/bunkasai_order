@@ -614,24 +614,51 @@ function renderDailyStockBar() {
   const el = document.getElementById("daily-stock-bar");
   if (!el) return;
   const items = [
-    { key:"アイス",  icon:"🍦" },
-    { key:"ラムネ", icon:"🫧" }
+    { key: "アイス", icon: "🍦" },
+    { key: "ラムネ", icon: "🫧" }
   ];
-  el.innerHTML = items.map(({key, icon}) => {
-    const s = dailyStock[key] || { limit:500, sold:0, remain:500 };
+  el.innerHTML = "";
+  items.forEach(({ key, icon }) => {
+    const s = dailyStock[key] || { limit: 500, sold: 0, remain: 500 };
     const pct = s.limit > 0 ? Math.min(100, Math.round(s.sold / s.limit * 100)) : 0;
     const barColor = pct >= 90 ? "var(--danger)" : pct >= 70 ? "var(--warn)" : "var(--success)";
-    return \`<div style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px;">
-        <span>\${icon} \${key}</span>
-        <span style="color:var(--muted)">\${s.sold} / \${s.limit}個 販売済</span>
-      </div>
-      <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
-        <div style="height:100%;width:\${pct}%;background:\${barColor};border-radius:4px;transition:width .3s;"></div>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:3px;">残り \${s.remain}個</div>
-    </div>\`;
-  }).join("");
+
+    const wrapper = document.createElement("div");
+    wrapper.style.marginBottom = "10px";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.justifyContent = "space-between";
+    header.style.fontSize = "12px";
+    header.style.fontWeight = "700";
+    header.style.marginBottom = "4px";
+    header.innerHTML = `<span>${icon} ${key}</span><span style="color:var(--muted)">${s.sold} / ${s.limit}個 販売済</span>`;
+
+    const barWrap = document.createElement("div");
+    barWrap.style.height = "8px";
+    barWrap.style.background = "var(--border)";
+    barWrap.style.borderRadius = "4px";
+    barWrap.style.overflow = "hidden";
+
+    const bar = document.createElement("div");
+    bar.style.height = "100%";
+    bar.style.width = pct + "%";
+    bar.style.background = barColor;
+    bar.style.borderRadius = "4px";
+    bar.style.transition = "width .3s";
+
+    const remain = document.createElement("div");
+    remain.style.fontSize = "11px";
+    remain.style.color = "var(--muted)";
+    remain.style.marginTop = "3px";
+    remain.textContent = `残り ${s.remain}個`;
+
+    barWrap.appendChild(bar);
+    wrapper.appendChild(header);
+    wrapper.appendChild(barWrap);
+    wrapper.appendChild(remain);
+    el.appendChild(wrapper);
+  });
 }
 
 function renderCapList() {
